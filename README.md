@@ -13,4 +13,4 @@ cd [project root] # goto project root
 ddev start
 
 > Any customizations in environment can be done in config.local.yaml and run ddev restart
->> For more config options https://ddev.readthedocs.io/en/stable/users/configuration/config/
+> For more config options https://ddev.readthedocs.io/en/stable/users/configuration/config/
