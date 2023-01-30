@@ -1,4 +1,4 @@
-# fdsu_ddev
+# FDSU ddev
 A ddev development environment for fdsu which works based on docker
 
 ### Install Docker
