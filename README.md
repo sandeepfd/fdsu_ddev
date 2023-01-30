@@ -7,7 +7,7 @@ https://docs.docker.com/engine/install/ubuntu/
 ### Install ddev
 https://ddev.readthedocs.io/en/latest/users/install/ddev-installation/#linux
 
-### Configure in project
+### Configure within project
 cd [project root] # goto project root
 
 ddev start
