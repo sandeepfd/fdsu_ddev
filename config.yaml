@@ -11,7 +11,7 @@ additional_fqdns:
  - sizeup.firstduesizeup.test
 database:
   type: postgres
-  version: "12"
+  version: "14"
 nfs_mount_enabled: false
 mutagen_enabled: false
 webimage_extra_packages: [php-mailparse]
