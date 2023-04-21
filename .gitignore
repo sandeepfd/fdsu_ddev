@@ -20,7 +20,7 @@
 /import-db
 /import.yaml
 /mutagen
-/nginx_full/nginx-site.conf
+# /nginx_full/nginx-site.conf
 /postgres/postgresql.conf
 /providers/platform.yaml
 /sequelpro.spf
