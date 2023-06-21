@@ -1,7 +1,7 @@
 name: fdsu
 type: php
 docroot: site/web
-php_version: "7.4"
+php_version: "7.3"
 webserver_type: nginx-fpm
 router_http_port: "80"
 router_https_port: "443"
@@ -15,7 +15,7 @@ database:
 nfs_mount_enabled: false
 mutagen_enabled: false
 webimage_extra_packages: [php-mailparse]
-dbimage_extra_packages: [postgis,postgresql-postgis]
+dbimage_extra_packages: [postgis,postgresql-14-postgis-3]
 use_dns_when_possible: true
 composer_version: "2"
 web_environment: []
