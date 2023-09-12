@@ -18,6 +18,8 @@ if [ "$install_yarn" = "y" ] || [ "$install_yarn" = "Y" ] ]
 then
     echo -e "\e[1;32m Installing yarn \e[0m"
     yarn install
+
+    cd site && yarn install --ignore-engines && cd ..
 else
     echo -e "\e[1;33mSkipping yarn installation\e[0m"
 fi
@@ -79,6 +81,9 @@ then
 
     cp site/web/index.php.dist site/web/index.php
 
+    #edit file site/web/index.php and uncomment line 3
+    sed -i '3 s/\/\/\(.*\)/\1/' ./site/web/index.php
+
     touch site/config/saml/firstdue-x509.crt
     touch site/config/saml/firstdue-x509.key
 
@@ -102,8 +107,6 @@ then
 else
     echo -e "\e[1;33mSkipping migrations\e[0m"
 fi
-
-
 
 #write message in green color and in bold
 echo -e "\e[1;32m $name setup complete, use 'ddev start' to start the project\e[0m"
