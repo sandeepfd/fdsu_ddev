@@ -69,10 +69,6 @@ then
     touch site/config/saml/firstdue-x509.key
 
     echo "defined('YII_DEBUG') or define('YII_DEBUG', true);" >> site/web/index.php
-
-    rm site/config/common-local.php && cp .ddev/extras/common-local.php site/config/common-local.php
-    rm site/config/cache-local.php && cp .ddev/extras/cache-local.php site/config/cache-local.php
-    rm site/config/cache-local.php && cp .ddev/extras/cache-local.php site/config/cache_write-local.php
 #    rm vendor/yiisoft/yii/framework/db/ar/CActiveRecord.php && cp .ddev/extras/CActiveRecord.php  vendor/yiisoft/yii/framework/db/ar/CActiveRecord.php
 
     echo "Necessary files copied!!!"
