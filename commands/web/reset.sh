@@ -28,6 +28,8 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
 
     #delete node_modules folder
     rm -rf node_modules
+
+
 else
     echo "Reset cancelled"
     exit 1

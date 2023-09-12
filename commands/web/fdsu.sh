@@ -1,10 +1,5 @@
 echo "Setting up the project"
 
-#ask user name and print hello $name
-echo "What do you want to call this project?"
-read project_name
-echo "Let's setup $project_name"
-
 #ask user if need to install composer or skip
 echo "Do you want to install composer? (y/n)[no]"
 read install_composer
@@ -13,7 +8,7 @@ then
     echo "Installing composer"
     composer install
 else
-    echo "Skipping composer installation"
+  echo -e "\e[1;33mSkipping composer installation\e[0m"
 fi
 
 #ask user if need to install yarn or skip
@@ -21,41 +16,60 @@ echo "Do you want to install yarn? (y/n)[no]"
 read install_yarn
 if [ "$install_yarn" = "y" ] || [ "$install_yarn" = "Y" ] ]
 then
-    echo "Installing yarn"
+    echo -e "\e[1;32m Installing yarn \e[0m"
     yarn install
 else
-    echo "Skipping yarn installation"
+    echo -e "\e[1;33mSkipping yarn installation\e[0m"
 fi
+
+
+function runDatabaseImport() {
+    echo "Enter the db file name"
+    read -r db_file_name
+
+    if [ -f "$db_file_name" ]; then
+
+        #check file extension if gz
+            if [[ "$db_file_name" == *.gz ]]
+            then
+                echo "File is gzipped"
+                echo "Unzipping db file"
+                gunzip "$db_file_name" -c > "db.sql"
+                filename="db.sql"
+            else
+                filename="$db_file_name"
+            fi
+
+            echo "Importing db"
+            psql -h db -d db -U db -f "$filename"
+    else
+        echo "File not found"
+        retry="y"
+        echo "Do you want to retry (y/n)[no]"
+        read -r retry
+        if [ "$retry" = "y" ] || [ "$retry" = "Y" ]
+          then
+              runDatabaseImport
+          else
+              echo -e "\e[1;33mSkipping db import\e[0m"
+          fi
+    fi
+}
 
 #ask user if want to import db or skip
 echo "Do you want to import db? (y/n)[no]"
-read import_db
+read -r import_db
 if [ "$import_db" = "y" ] || [ "$import_db" = "Y" ] ]
 then
-    echo "Importing db"
-    #ask user for the db file name and unzip if file exists
-    echo "Enter the db file name"
-    read db_file_name
-    if [ -f "$db_file_name" ]
-    then
-        echo "Unzipping db file"
-        gunzip $db_file_name
-        psql -h db -d db -U db -f $db_file_name
-
-        #delete unzipped file
-        rm -f $db_file_name
-    else
-        echo "File not found"
-    fi
+    runDatabaseImport
 else
-    echo "Skipping db import"
+    echo -e "\e[1;33mSkipping db import\e[0m"
 fi
-
 
 #ask user if want to recreate files
 echo "Do you want to recreate files? (y/n)[no]"
-read recreate_files
-if [ "recreate_files" = "y" ] || [ "recreate_files" = "Y" ] ]
+read -r recreate_files
+if [ "$recreate_files" = "y" ] || [ "$recreate_files" = "Y" ] ]
 then
     #copy files
     for file in site/config/*.dist; do
@@ -71,10 +85,10 @@ then
     echo "defined('YII_DEBUG') or define('YII_DEBUG', true);" >> site/web/index.php
 #    rm vendor/yiisoft/yii/framework/db/ar/CActiveRecord.php && cp .ddev/extras/CActiveRecord.php  vendor/yiisoft/yii/framework/db/ar/CActiveRecord.php
 
-    echo "Necessary files copied!!!"
+    echo -e "\e[1;32mNecessary files copied!!!\e[0m"
 
 else
-    echo "Skipping file recreation"
+    echo -e "\e[1;33mSkipping file recreation\e[0m"
 fi
 
 
@@ -86,7 +100,7 @@ then
     echo "Running migrations"
     php console/yiic.php migrate
 else
-    echo "Skipping migrations"
+    echo -e "\e[1;33mSkipping migrations\e[0m"
 fi
 
 
