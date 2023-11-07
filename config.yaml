@@ -19,9 +19,8 @@ dbimage_extra_packages: [postgis,postgresql-14-postgis-3]
 use_dns_when_possible: true
 composer_version: "2"
 web_environment: []
-nodejs_version: "16"
+nodejs_version: "18"
 host_db_port: "5432"
-omit_containers: [dba]
 
 # Key features of ddev's config.yaml:
 
