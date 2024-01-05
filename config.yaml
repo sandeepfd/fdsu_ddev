@@ -3,8 +3,8 @@ type: php
 docroot: site/web
 php_version: "7.4"
 webserver_type: nginx-fpm
-router_http_port: "80"
-router_https_port: "443"
+router_http_port: "8089"
+router_https_port: "5449"
 xdebug_enabled: false
 additional_hostnames: []
 additional_fqdns:
@@ -14,13 +14,13 @@ database:
   version: "15"
 nfs_mount_enabled: false
 mutagen_enabled: false
-webimage_extra_packages: [php7.3-mailparse]
-dbimage_extra_packages: [postgis,postgresql-14-postgis-3]
+webimage_extra_packages: [php7.4-mailparse]
+dbimage_extra_packages: [postgis,postgresql-15-postgis-3]
 use_dns_when_possible: true
 composer_version: "2"
 web_environment: []
 nodejs_version: "18"
-host_db_port: "5432"
+host_db_port: "5439"
 
 # Key features of ddev's config.yaml:
 
