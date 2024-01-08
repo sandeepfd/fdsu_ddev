@@ -1,10 +1,10 @@
-name: bash
+name: fdsu
 type: php
 docroot: site/web
 php_version: "7.4"
 webserver_type: nginx-fpm
-router_http_port: "8089"
-router_https_port: "5449"
+router_http_port: "80"
+router_https_port: "443"
 xdebug_enabled: false
 additional_hostnames: []
 additional_fqdns:
@@ -20,7 +20,7 @@ use_dns_when_possible: true
 composer_version: "2"
 web_environment: []
 nodejs_version: "18"
-host_db_port: "5439"
+host_db_port: "5432"
 
 # Key features of ddev's config.yaml:
 
