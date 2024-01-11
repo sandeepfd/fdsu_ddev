@@ -1,4 +1,4 @@
-name: fdsu
+name: fdsu-ddev
 type: php
 docroot: site/web
 php_version: "7.4"
