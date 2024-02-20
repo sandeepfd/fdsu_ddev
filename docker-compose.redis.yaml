@@ -11,4 +11,4 @@ services:
     volumes:
     - ".:/mnt/ddev_config"
     - "./redis:/usr/local/etc/redis"
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--requirepass yourpassword"]
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--requirepass 6nk9DL8AR79FrXtj7ZVugTJ7JJqEVv7n"]
