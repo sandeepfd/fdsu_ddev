@@ -1,0 +1,19 @@
+version: "3.9"
+services:
+  centrifugo:
+    container_name: ddev-${DDEV_SITENAME}-centrifugo
+    image: centrifugo/centrifugo:v5
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: $DDEV_APPROOT
+    volumes:
+      - ./centrifugo/centrifugo.json:/centrifugo/centrifugo.json
+      - ./centrifugo/master.crt:/centrifugo/master.crt
+      - ./centrifugo/master.key:/centrifugo/master.key
+    command: centrifugo -c centrifugo.json
+    ports:
+      - 8888:8888
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
