@@ -1,0 +1,14 @@
+{
+    "token_hmac_secret_key": "secret_key",
+    "admin_password": "password",
+    "admin_secret": "secret",
+    "api_key": "apy_key",
+    "allowed_origins": ["*"],
+    "address": "",
+    "port": 8888,
+    "admin": true,
+    "uni_sse": true,
+    "user_subscribe_to_personal": true,
+    "allow_user_limited_channels": true,
+    "allow_subscribe_for_client": true
+  }
