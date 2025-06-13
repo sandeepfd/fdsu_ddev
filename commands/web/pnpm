@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+#ddev-generated
+## Description: Run pnpm inside the web container
+## Usage: pnpm [flags] [args]
+## Example: "ddev pnpm --version"
+## ExecRaw: true
+
+pnpm "$@"

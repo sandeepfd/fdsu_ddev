@@ -20,6 +20,11 @@ nodejs_version: "22"
 corepack_enable: false
 default_container_timeout: "240"
 disable_upload_dirs_warning: true
+web_extra_exposed_ports:
+ - name: ui-vue-storybook
+   container_port: 6006
+   http_port: 9998
+   https_port: 9999
 # Key features of DDEV's config.yaml:
 
 # name: <projectname> # Name of the project, automatically provides
