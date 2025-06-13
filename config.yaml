@@ -24,7 +24,7 @@ web_extra_exposed_ports:
  - name: ui-vue-storybook
    container_port: 6006
    http_port: 9998
-   https_port: 9999
+   https_port: 6006
 # Key features of DDEV's config.yaml:
 
 # name: <projectname> # Name of the project, automatically provides
