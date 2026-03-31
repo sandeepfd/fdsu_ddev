@@ -1,0 +1,97 @@
+#!/bin/bash
+
+## Description: Validate PostgreSQL 18 migration against PostgreSQL 14
+## Usage: validate-pg18-migration
+
+echo "=== PostgreSQL 18 Migration Validation ==="
+echo ""
+
+# Check connections
+echo "1. Testing connections..."
+PG14_CONN=$(PGPASSWORD=db psql -h localhost -p 5432 -U db -d db -t -c "SELECT 1;" 2>&1)
+PG18_CONN=$(PGPASSWORD=db psql -h localhost -p 5433 -U db -d db -t -c "SELECT 1;" 2>&1)
+
+if [ $? -eq 0 ]; then
+    echo "   ✓ PostgreSQL 14: Connected"
+else
+    echo "   ✗ PostgreSQL 14: Connection failed"
+    exit 1
+fi
+
+if [ $? -eq 0 ]; then
+    echo "   ✓ PostgreSQL 18: Connected"
+else
+    echo "   ✗ PostgreSQL 18: Connection failed"
+    exit 1
+fi
+
+# Compare versions
+echo ""
+echo "2. PostgreSQL versions:"
+PG14_VER=$(PGPASSWORD=db psql -h localhost -p 5432 -U db -d db -t -c "SELECT version();" | head -1)
+PG18_VER=$(PGPASSWORD=db psql -h localhost -p 5433 -U db -d db -t -c "SELECT version();" | head -1)
+echo "   PG14: $PG14_VER"
+echo "   PG18: $PG18_VER"
+
+# Compare extensions
+echo ""
+echo "3. Extensions:"
+echo "   PostgreSQL 14:"
+PGPASSWORD=db psql -h localhost -p 5432 -U db -d db -c "SELECT extname, extversion FROM pg_extension ORDER BY extname;"
+echo "   PostgreSQL 18:"
+PGPASSWORD=db psql -h localhost -p 5433 -U db -d db -c "SELECT extname, extversion FROM pg_extension ORDER BY extname;"
+
+# Compare schemas
+echo ""
+echo "4. Schemas:"
+PG14_SCHEMAS=$(PGPASSWORD=db psql -h localhost -p 5432 -U db -d db -t -c "SELECT count(*) FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast');" | xargs)
+PG18_SCHEMAS=$(PGPASSWORD=db psql -h localhost -p 5433 -U db -d db -t -c "SELECT count(*) FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast');" | xargs)
+echo "   PG14 schemas: $PG14_SCHEMAS"
+echo "   PG18 schemas: $PG18_SCHEMAS"
+
+# Compare table counts
+echo ""
+echo "5. Table counts:"
+PG14_TABLES=$(PGPASSWORD=db psql -h localhost -p 5432 -U db -d db -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema');" | xargs)
+PG18_TABLES=$(PGPASSWORD=db psql -h localhost -p 5433 -U db -d db -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog', 'information_schema');" | xargs)
+echo "   PG14 tables: $PG14_TABLES"
+echo "   PG18 tables: $PG18_TABLES"
+
+if [ "$PG14_TABLES" != "$PG18_TABLES" ]; then
+    echo "   ⚠ WARNING: Table count mismatch!"
+fi
+
+# Compare index counts
+echo ""
+echo "6. Index counts:"
+PG14_INDEXES=$(PGPASSWORD=db psql -h localhost -p 5432 -U db -d db -t -c "SELECT count(*) FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema');" | xargs)
+PG18_INDEXES=$(PGPASSWORD=db psql -h localhost -p 5433 -U db -d db -t -c "SELECT count(*) FROM pg_indexes WHERE schemaname NOT IN ('pg_catalog', 'information_schema');" | xargs)
+echo "   PG14 indexes: $PG14_INDEXES"
+echo "   PG18 indexes: $PG18_INDEXES"
+
+# Check pg_trgm indexes
+echo ""
+echo "7. pg_trgm indexes:"
+PG18_TRGM=$(PGPASSWORD=db psql -h localhost -p 5433 -U db -d db -t -c "SELECT count(*) FROM pg_indexes WHERE indexdef LIKE '%gin_trgm_ops%';" | xargs)
+echo "   PG18 pg_trgm indexes: $PG18_TRGM"
+if [ "$PG18_TRGM" -gt 0 ]; then
+    echo "   ⚠ Remember to reindex pg_trgm indexes after migration!"
+fi
+
+# Database sizes
+echo ""
+echo "8. Database sizes:"
+PG14_SIZE=$(PGPASSWORD=db psql -h localhost -p 5432 -U db -d db -t -c "SELECT pg_size_pretty(pg_database_size('db'));" | xargs)
+PG18_SIZE=$(PGPASSWORD=db psql -h localhost -p 5433 -U db -d db -t -c "SELECT pg_size_pretty(pg_database_size('db'));" | xargs)
+echo "   PG14 size: $PG14_SIZE"
+echo "   PG18 size: $PG18_SIZE"
+
+echo ""
+echo "=== Validation Complete ==="
+echo ""
+echo "Next steps:"
+echo "1. Review any warnings above"
+echo "2. Reindex pg_trgm indexes if needed"
+echo "3. Run ANALYZE on all tables"
+echo "4. Test application functionality"
+
