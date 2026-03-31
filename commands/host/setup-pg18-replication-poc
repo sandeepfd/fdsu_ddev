@@ -1,0 +1,184 @@
+#!/bin/bash
+
+## Description: Set up POC replication chain Primary -> Physical -> Logical (pg18)
+## Usage: setup-pg18-replication-poc
+## Requires: docker compose, psql (for primary). Run from project root or via ddev.
+
+set -e
+
+# Compose files and project (match DDEV naming)
+# Script lives at .ddev/commands/host/setup-pg18-replication-poc -> project root is 3 levels up
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DDEV_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+COMPOSE_DIR="${DDEV_ROOT}/.ddev"
+COMPOSE_FILES="-f ${COMPOSE_DIR}/docker-compose.postgres18.yaml -f ${COMPOSE_DIR}/docker-compose.pg18-replication.yaml"
+# Use DDEV_SITENAME when run via ddev; for manual run set it to match config (e.g. export DDEV_SITENAME=fdsu)
+SITENAME="${DDEV_SITENAME:-$(basename "$DDEV_ROOT")}"
+PROJECT_NAME="ddev-${SITENAME}"
+PRIMARY_CONTAINER="${PROJECT_NAME}-postgres18"
+PRIMARY_PORT=5433
+PHYSICAL_PORT=5434
+LOGICAL_PORT=5435
+
+cd "$DDEV_ROOT"
+
+echo "=== PG18 Replication POC: Primary -> Physical -> Logical ==="
+echo "Project: $PROJECT_NAME | Primary container: $PRIMARY_CONTAINER"
+echo ""
+
+# 1. Start primary with replication settings (both compose files so command override applies)
+echo "1. Starting primary (postgres18) with wal_level=logical..."
+export COMPOSE_PROJECT_NAME="$PROJECT_NAME"
+docker compose $COMPOSE_FILES up -d postgres18
+
+echo "   Waiting for primary to be ready..."
+for i in {1..30}; do
+  if PGPASSWORD=db psql -h 127.0.0.1 -p $PRIMARY_PORT -U db -d db -t -c "SELECT 1;" 2>/dev/null | grep -q 1; then
+    echo "   Primary is ready."
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "   Primary did not become ready in time."
+    exit 1
+  fi
+  sleep 1
+done
+
+# 2. Ensure pg_hba allows replication (for existing primary that didn't have 03-pg_hba-replication.sh)
+echo ""
+echo "2. Ensuring primary allows replication connections..."
+PGHBA="/var/lib/postgresql/data/pg_hba.conf"
+# Add IPv4 and IPv6 replication lines if not already present (trust for POC)
+for entry in "host replication repl 0.0.0.0/0 trust" "host replication repl ::0/0 trust"; do
+  if ! docker exec "$PRIMARY_CONTAINER" grep -qF "$entry" "$PGHBA" 2>/dev/null; then
+    docker exec "$PRIMARY_CONTAINER" sh -c "echo '$entry' >> $PGHBA"
+    echo "   Added to pg_hba: $entry"
+  fi
+done
+PGPASSWORD=db psql -h 127.0.0.1 -p $PRIMARY_PORT -U db -d db -t -c "SELECT pg_reload_conf();" >/dev/null 2>&1
+echo "   pg_hba reloaded."
+
+# 3. Create repl user and physical replication slot on primary (idempotent)
+echo ""
+echo "3. Creating repl role and physical replication slot on primary..."
+PGPASSWORD=db psql -h 127.0.0.1 -p $PRIMARY_PORT -U db -d db -v ON_ERROR_STOP=1 <<'SQL'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'repl') THEN
+    CREATE ROLE repl WITH REPLICATION LOGIN PASSWORD 'repl';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = 'physical_standby_slot') THEN
+    PERFORM pg_create_physical_replication_slot('physical_standby_slot');
+  END IF;
+END $$;
+SQL
+echo "   Repl user and slot ready."
+
+# 4. Populate physical standby data dir via pg_basebackup (one-off run)
+# pg_basebackup requires an empty target dir. Stop containers that use the volume, clear the dir
+# (avoids relying on project-specific volume name), then run pg_basebackup with empty entrypoint.
+echo ""
+echo "4. Creating physical standby from primary (pg_basebackup)..."
+docker compose $COMPOSE_FILES stop postgres18-physical postgres18-logical postgres18-logical-from-primary 2>/dev/null || true
+echo "   Clearing physical standby data dir (if any)..."
+docker compose $COMPOSE_FILES run --rm --no-deps --user root --entrypoint "" postgres18-physical \
+  sh -c "rm -rf /var/lib/postgresql/data/.??* /var/lib/postgresql/data/* 2>/dev/null; true"
+echo "   Running pg_basebackup..."
+docker compose $COMPOSE_FILES run --rm --no-deps --entrypoint "" \
+  -e PGPASSWORD=repl \
+  postgres18-physical \
+  pg_basebackup -h "$PRIMARY_CONTAINER" -p 5432 -U repl -D /var/lib/postgresql/data -Fp -Xs -P -R
+
+echo "   Adding primary_slot_name and primary_conninfo (with dbname) to standby config..."
+docker compose $COMPOSE_FILES run --rm --no-deps --entrypoint "" \
+  postgres18-physical \
+  sh -c "echo \"primary_slot_name = 'physical_standby_slot'\" >> /var/lib/postgresql/data/postgresql.auto.conf && echo \"primary_conninfo = 'host=$PRIMARY_CONTAINER port=5432 user=repl password=repl dbname=db'\" >> /var/lib/postgresql/data/postgresql.auto.conf"
+
+# 5. Build pglogical image and start physical and logical replicas (including logical-from-primary on 5436)
+# Logical containers need the pglogical image (same as primary); build so it exists even if only replication compose is used.
+echo ""
+echo "5. Building pglogical image for logical replicas (if needed)..."
+docker compose $COMPOSE_FILES build postgres18-logical
+echo "   Ensuring logical replica volumes are postgres-owned..."
+docker compose $COMPOSE_FILES run --rm --no-deps --user root --entrypoint "" postgres18-logical \
+  sh -c "chown -R postgres:postgres /var/lib/postgresql/data 2>/dev/null || true"
+docker compose $COMPOSE_FILES run --rm --no-deps --user root --entrypoint "" postgres18-logical-from-primary \
+  sh -c "chown -R postgres:postgres /var/lib/postgresql/data 2>/dev/null || true"
+echo "   Starting physical and logical replica containers..."
+docker compose $COMPOSE_FILES up -d postgres18-physical postgres18-logical postgres18-logical-from-primary
+
+echo "   Waiting for physical replica (port $PHYSICAL_PORT)..."
+for i in {1..30}; do
+  if PGPASSWORD=db psql -h 127.0.0.1 -p $PHYSICAL_PORT -U db -d db -t -c "SELECT 1;" 2>/dev/null | grep -q 1; then
+    echo "   Physical replica is ready."
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "   Physical replica did not become ready in time."
+    exit 1
+  fi
+  sleep 1
+done
+
+echo "   Waiting for logical replica (port $LOGICAL_PORT)..."
+for i in {1..30}; do
+  if PGPASSWORD=db psql -h 127.0.0.1 -p $LOGICAL_PORT -U db -d db -t -c "SELECT 1;" 2>/dev/null | grep -q 1; then
+    echo "   Logical replica is ready."
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "   Logical replica did not become ready in time."
+    exit 1
+  fi
+  sleep 1
+done
+
+LOGICAL_FROM_PRIMARY_PORT=5436
+echo "   Waiting for logical-from-primary (port $LOGICAL_FROM_PRIMARY_PORT, may take up to 60s on first init)..."
+for i in {1..60}; do
+  if PGPASSWORD=db psql -h 127.0.0.1 -p $LOGICAL_FROM_PRIMARY_PORT -U db -d db -t -c "SELECT 1;" 2>/dev/null | grep -q 1; then
+    echo "   Logical-from-primary is ready."
+    break
+  fi
+  if [ "$i" -eq 60 ]; then
+    echo "   Logical-from-primary did not become ready in 60s. Check: docker logs ${PROJECT_NAME}-postgres18-logical-from-primary"
+    exit 1
+  fi
+  sleep 1
+done
+
+echo ""
+echo "=== POC stack is running ==="
+echo "  Primary:   127.0.0.1:$PRIMARY_PORT  (read-write)"
+echo "  Physical:  127.0.0.1:$PHYSICAL_PORT (read-only standby)"
+echo "  Logical:   127.0.0.1:$LOGICAL_PORT  (subscriber to physical; create subscription next)"
+echo "  Logical-2: 127.0.0.1:$LOGICAL_FROM_PRIMARY_PORT (subscriber to primary; create subscription next)"
+echo ""
+echo "Next steps (run manually):"
+echo ""
+echo "  A. On PRIMARY (port $PRIMARY_PORT), create the publication (see POC doc for table list):"
+echo "     PGPASSWORD=db psql -h 127.0.0.1 -p $PRIMARY_PORT -U db -d db -c \\"
+echo "       \"CREATE PUBLICATION pub_to_logical FOR TABLE app.client, app.incident_report,\""
+echo "       \"  app.incident_report_apparatus, app.nfirs_basic, app.nfirs_fire,\""
+echo "       \"  app.nfirs_incident_type, app.neris_dictionary, app.nfors, app.apparatus,\""
+echo "       \"  app.fire_station, app.fire_zone, app.fire_zone_client,\""
+echo "       \"  app.batt_dept_response_zone, app.batt_dept_shift;\""
+echo ""
+echo "  B. On LOGICAL (5435), create the subscription to the physical standby:"
+echo "     PGPASSWORD=db psql -h 127.0.0.1 -p $LOGICAL_PORT -U db -d db -c \\"
+echo "       \"CREATE SUBSCRIPTION sub_from_physical\""
+echo "       \"  CONNECTION 'host=postgres18-physical port=5432 dbname=db user=db password=db'\""
+echo "       \"  PUBLICATION pub_to_logical\""
+echo "       \"  WITH (copy_data = true, create_slot = true);\""
+echo ""
+echo "  C. On LOGICAL-FROM-PRIMARY (5436), create the subscription to the primary:"
+echo "     PGPASSWORD=db psql -h 127.0.0.1 -p 5436 -U db -d db -c \\"
+echo "       \"CREATE SUBSCRIPTION sub_from_primary\""
+echo "       \"  CONNECTION 'host=postgres18 port=5432 dbname=db user=db password=db'\""
+echo "       \"  PUBLICATION pub_to_logical\""
+echo "       \"  WITH (copy_data = true, create_slot = true);\""
+echo ""
+echo "  D. Ensure the same schema exists on both logical replicas (run migrations or DDL there);"
+echo "     logical replication does not replicate DDL."
+echo ""
+echo "See brainstorming/PG18_REPLICATION_POC.md for test cases and details."

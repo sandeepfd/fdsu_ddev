@@ -1,0 +1,150 @@
+# POC: PostgreSQL 18 Primary + Physical Standby + Logical Replicas
+# Merge with docker-compose.postgres18.yaml (start postgres18 first).
+# See brainstorming/PG18_REPLICATION_POC.md for setup and test cases.
+#
+# Nodes: primary (5433), physical (5434), logical from physical (5435), logical from primary (5436).
+
+services:
+  # Primary: config from .ddev/postgres18/postgresql.conf
+  postgres18:
+    volumes:
+      - "postgres18_data:/var/lib/postgresql/data"
+      - ".:/mnt/ddev_config"
+      - "./postgres18-init:/docker-entrypoint-initdb.d"
+      - "./postgres18:/etc/postgresql/poc-primary:ro"
+      - "./../postgresql/logicaldb:/usr/share/postgresql/18/extension/logicaldb"
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/poc-primary/postgresql.conf
+
+  # # Physical standby: same image as primary (PostGIS 18 + pglogical; pglogical not required for streaming but keeps nodes consistent)
+  # postgres18-physical:
+  #   build:
+  #     context: .
+  #     dockerfile: pg18-pglogical-build/Dockerfile
+  #   image: ddev-${DDEV_SITENAME:-fdsu}-pg18
+  #   container_name: ddev-${DDEV_SITENAME:-fdsu}-postgres18-physical
+  #   hostname: ${DDEV_SITENAME:-fdsu}-postgres18-physical
+  #   command:
+  #     - postgres
+  #     - -c
+  #     - config_file=/etc/postgresql/poc-physical/postgresql.conf
+  #   environment:
+  #     - POSTGRES_DB=db
+  #     - POSTGRES_USER=db
+  #     - POSTGRES_PASSWORD=db
+  #     - PGDATA=/var/lib/postgresql/data
+  #     - TZ=${TZ:-UTC}
+  #   ports:
+  #     - "5434:5432"
+  #   labels:
+  #     com.ddev.site-name: ${DDEV_SITENAME:-fdsu}
+  #     com.ddev.approot: ${DDEV_APPROOT:-/var/www/html}
+  #   volumes:
+  #     - "postgres18_physical_data:/var/lib/postgresql/data"
+  #     - ".:/mnt/ddev_config"
+  #     - "./postgres18-physical:/etc/postgresql/poc-physical:ro"
+  #     - "./../postgresql/logicaldb:/usr/share/postgresql/18/extension/logicaldb"
+  #   networks:
+  #     - ddev_default
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U db -d db || exit 1"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: "no"
+  #   # Start only after primary is up; data dir must be populated by pg_basebackup (see POC doc)
+
+  # # Logical replica: config from .ddev/postgres18-logical/postgresql.conf (same image as primary; pglogical required)
+  # postgres18-logical:
+  #   build:
+  #     context: .
+  #     dockerfile: pg18-pglogical-build/Dockerfile
+  #   image: ddev-${DDEV_SITENAME:-fdsu}-pg18
+  #   container_name: ddev-${DDEV_SITENAME:-fdsu}-postgres18-logical
+  #   hostname: ${DDEV_SITENAME:-fdsu}-postgres18-logical
+  #   user: root
+  #   entrypoint: ["sh", "/docker-entrypoint-logical.sh"]
+  #   command:
+  #     - postgres
+  #     - -c
+  #     - config_file=/etc/postgresql/poc-logical/postgresql.conf
+  #   environment:
+  #     - POSTGRES_DB=db
+  #     - POSTGRES_USER=db
+  #     - POSTGRES_PASSWORD=db
+  #     - PGDATA=/var/lib/postgresql/data
+  #     - TZ=${TZ:-UTC}
+  #   ports:
+  #     - "5435:5432"
+  #   labels:
+  #     com.ddev.site-name: ${DDEV_SITENAME:-fdsu}
+  #     com.ddev.approot: ${DDEV_APPROOT:-/var/www/html}
+  #   volumes:
+  #     - "postgres18_logical_data:/var/lib/postgresql/data"
+  #     - ".:/mnt/ddev_config"
+  #     - "./scripts/postgres-logical-entrypoint.sh:/docker-entrypoint-logical.sh:ro"
+  #     - "./postgres18-logical-init:/docker-entrypoint-initdb.d"
+  #     - "./postgres18-logical:/etc/postgresql/poc-logical:ro"
+  #     - "./../postgresql/logicaldb:/usr/share/postgresql/18/extension/logicaldb"
+  #   networks:
+  #     - ddev_default
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U db -d db || exit 1"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: "no"
+
+  # # Logical replica from primary only (port 5436): native subscription to primary (5433)
+  # postgres18-logical-from-primary:
+  #   build:
+  #     context: .
+  #     dockerfile: pg18-pglogical-build/Dockerfile
+  #   image: ddev-${DDEV_SITENAME:-fdsu}-pg18
+  #   container_name: ddev-${DDEV_SITENAME:-fdsu}-postgres18-logical-from-primary
+  #   hostname: ${DDEV_SITENAME:-fdsu}-postgres18-logical-from-primary
+  #   user: root
+  #   entrypoint: ["sh", "/docker-entrypoint-logical.sh"]
+  #   command:
+  #     - postgres
+  #     - -c
+  #     - config_file=/etc/postgresql/poc-logical-from-primary/postgresql.conf
+  #   environment:
+  #     - POSTGRES_DB=db
+  #     - POSTGRES_USER=db
+  #     - POSTGRES_PASSWORD=db
+  #     - PGDATA=/var/lib/postgresql/data
+  #     - TZ=${TZ:-UTC}
+  #   ports:
+  #     - "5436:5432"
+  #   labels:
+  #     com.ddev.site-name: ${DDEV_SITENAME:-fdsu}
+  #     com.ddev.approot: ${DDEV_APPROOT:-/var/www/html}
+  #   volumes:
+  #     - "postgres18_logical_from_primary_data:/var/lib/postgresql/data"
+  #     - ".:/mnt/ddev_config"
+  #     - "./scripts/postgres-logical-entrypoint.sh:/docker-entrypoint-logical.sh:ro"
+  #     - "./postgres18-logical-from-primary-init:/docker-entrypoint-initdb.d"
+  #     - "./postgres18-logical-from-primary:/etc/postgresql/poc-logical-from-primary:ro"
+  #     - "./../postgresql/logicaldb:/usr/share/postgresql/18/extension/logicaldb"
+  #   networks:
+  #     - ddev_default
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U db -d db || exit 1"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #   restart: "no"
+
+# volumes:
+#   postgres18_physical_data:
+#   postgres18_logical_data:
+#   postgres18_logical_from_primary_data:
+
+# Use the existing ddev_default network (created by DDEV or prior run).
+# Set external: true so we attach to it instead of creating a new one.
+networks:
+  ddev_default:
+    external: true
