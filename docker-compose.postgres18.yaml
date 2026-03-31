@@ -1,0 +1,47 @@
+# PG18 image is built from .ddev/pg18-pglogical-build/Dockerfile (PostGIS 18 + pglogical).
+# Built automatically when you run ddev start, or manually: docker compose -f .ddev/docker-compose.postgres18.yaml build postgres18
+# When run standalone, DDEV_* vars default so build works; network is defined so it's valid without DDEV.
+services:
+  postgres18:
+    container_name: ddev-${DDEV_SITENAME:-fdsu}-postgres18
+    hostname: ${DDEV_SITENAME:-fdsu}-postgres18
+    build:
+      context: .
+      dockerfile: pg18-pglogical-build/Dockerfile
+    image: ddev-${DDEV_SITENAME:-fdsu}-pg18
+    ports:
+      - "5433:5432"  # Use different host port to avoid conflict with main db (5432)
+    environment:
+      - POSTGRES_DB=db
+      - POSTGRES_USER=db
+      - POSTGRES_PASSWORD=db
+      - PGDATABASE=db
+      - PGUSER=db
+      - PGPASSWORD=db
+      - PGDATA=/var/lib/postgresql/data
+      - TZ=${TZ:-UTC}
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME:-fdsu}
+      com.ddev.approot: ${DDEV_APPROOT:-/var/www/html}
+    volumes:
+      - "postgres18_data:/var/lib/postgresql/data"
+      - ".:/mnt/ddev_config"
+      - "./postgres18-init:/docker-entrypoint-initdb.d"
+    networks:
+      - ddev_default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U db -d db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: "no"
+
+volumes:
+  postgres18_data:
+
+# When run standalone (e.g. build only), network is defined here so the file is valid.
+# When DDEV merges this with base + pg18-replication, replication file sets external: true.
+networks:
+  ddev_default:
+    name: ddev_default
+

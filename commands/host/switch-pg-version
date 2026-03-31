@@ -1,0 +1,82 @@
+#!/bin/bash
+## Description: Switch database connection between PostgreSQL 14 and 18 by renaming config files
+## Usage: switch-pg-version [14|18]
+## Example: switch-pg-version 18
+
+VERSION=${1:-14}
+
+if [ "$VERSION" != "14" ] && [ "$VERSION" != "18" ]; then
+    echo "Error: Version must be 14 or 18"
+    echo "Usage: ddev switch-pg-version [14|18]"
+    exit 1
+fi
+
+CONFIG_DIR="site/config"
+
+if [ "$VERSION" == "18" ]; then
+    echo "Switching to PostgreSQL 18..."
+    PG_VERSION="pg18"
+else
+    echo "Switching to PostgreSQL 14..."
+    PG_VERSION="pg14"
+fi
+
+# Function to switch a config file
+switch_config() {
+    local base_name=$1
+    local active_file="$CONFIG_DIR/${base_name}-local.php"
+    local pg14_file="$CONFIG_DIR/${base_name}-local-pg14.php"
+    local pg18_file="$CONFIG_DIR/${base_name}-local-pg18.php"
+    
+    # Check if versioned files exist
+    if [ ! -f "$pg14_file" ] || [ ! -f "$pg18_file" ]; then
+        echo "⚠ Warning: Versioned files not found for $base_name"
+        echo "  Expected: $pg14_file"
+        echo "  Expected: $pg18_file"
+        return 1
+    fi
+    
+    # Backup current active file if it exists and is not a versioned file
+    if [ -f "$active_file" ] && [ ! -L "$active_file" ]; then
+        # Check if it's not already a versioned file
+        if [[ "$active_file" != *"-pg14.php" ]] && [[ "$active_file" != *"-pg18.php" ]]; then
+            mv "$active_file" "${active_file}.backup.$(date +%Y%m%d_%H%M%S)"
+            echo "  Backed up existing $base_name-local.php"
+        fi
+    fi
+    
+    # Remove existing active file (if it's a symlink or regular file)
+    [ -f "$active_file" ] && rm -f "$active_file"
+    [ -L "$active_file" ] && rm -f "$active_file"
+    
+    # Copy the appropriate versioned file to the active file
+    if [ "$VERSION" == "18" ]; then
+        cp "$pg18_file" "$active_file"
+    else
+        cp "$pg14_file" "$active_file"
+    fi
+    
+    echo "✓ Switched $base_name-local.php to PostgreSQL $VERSION"
+    return 0
+}
+
+# Switch all config files
+echo ""
+switch_config "db_write"
+switch_config "db_read"
+switch_config "db_read_report"
+switch_config "common"
+
+echo ""
+echo "✓ Successfully switched to PostgreSQL $VERSION"
+echo ""
+echo "Current active configuration:"
+echo "  - db_write-local.php → PostgreSQL $VERSION"
+echo "  - db_read-local.php → PostgreSQL $VERSION"
+echo "  - db_read_report-local.php → PostgreSQL $VERSION"
+echo "  - common-local.php → PostgreSQL $VERSION"
+echo ""
+echo "Next steps:"
+echo "  1. Clear cache: ddev exec 'rm -rf site/runtime/cache/*'"
+echo "  2. Restart DDEV: ddev restart"
+echo "  3. Verify connection by checking your application"

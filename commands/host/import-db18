@@ -1,0 +1,34 @@
+#!/bin/bash
+
+## Description: Import database dump into PostgreSQL 18
+## Usage: import-db18 [file]
+## Example: import-db18 ~/Downloads/backup.sql.gz
+
+if [ -z "$1" ]; then
+    echo "Usage: ddev import-db18 <file>"
+    echo "Example: ddev import-db18 ~/Downloads/backup.sql.gz"
+    exit 1
+fi
+
+FILE="$1"
+
+if [ ! -f "$FILE" ]; then
+    echo "Error: File '$FILE' not found"
+    exit 1
+fi
+
+echo "Importing $FILE into PostgreSQL 18..."
+
+if [[ "$FILE" == *.gz ]]; then
+    gunzip -c "$FILE" | PGPASSWORD=db psql -h 127.0.0.1 -p 5433 -U db -d db
+else
+    PGPASSWORD=db psql -h 127.0.0.1 -p 5433 -U db -d db < "$FILE"
+fi
+
+if [ $? -eq 0 ]; then
+    echo "✓ Successfully imported into PostgreSQL 18"
+else
+    echo "✗ Import failed"
+    exit 1
+fi
+
