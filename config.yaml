@@ -1,7 +1,7 @@
 name: fdsu
 type: php
 docroot: site/web
-php_version: "8.0"
+php_version: "8.3"
 webserver_type: nginx-fpm
 xdebug_enabled: false
 additional_hostnames: []
@@ -9,14 +9,15 @@ additional_fqdns:
   - sizeup.firstduesizeup.test
 database:
   type: postgres
-  version: "14"
+  version: "18"
 host_db_port: "5432"
-webimage_extra_packages: [php8.0-mailparse]
-dbimage_extra_packages: [postgis, postgresql-14-postgis-3]
+webimage_extra_packages: [php8.3-mailparse]
+dbimage_extra_packages: [postgis, postgresql-18-postgis-3]
 use_dns_when_possible: true
 composer_version: "2"
-web_environment: []
-nodejs_version: "22"
+web_environment:
+  - XDEBUG_MODE=coverage
+nodejs_version: "24.18.0"
 corepack_enable: false
 default_container_timeout: "240"
 disable_upload_dirs_warning: true
